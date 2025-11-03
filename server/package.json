@@ -1,0 +1,32 @@
+{
+  "name": "mafia-game-server",
+  "version": "1.0.0",
+  "description": "خادم لعبة المافيا متعددة اللاعبين عبر WebSocket",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "echo \"No tests specified\" && exit 0"
+  },
+  "keywords": [
+    "mafia",
+    "game",
+    "websocket",
+    "multiplayer",
+    "nodejs"
+  ],
+  "author": "Bo3oo",
+  "license": "MIT",
+  "dependencies": {
+    "ws": "^8.14.2"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/A-Al-Shaibani/mafia-game"
+  },
+  "homepage": "https://github.com/A-Al-Shaibani/mafia-game#readme"
+}

@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>مضيف لعبة المافيا</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- شاشة الانتظار -->
+        <div id="lobbyScreen" class="screen active">
+            <h1>🎭 مضيف المافيا</h1>
+            
+            <div class="connection-info">
+                <p>شارك هذا الرابط مع اللاعبين:</p>
+                <div class="url-box">
+                    <input type="text" id="gameUrl" readonly>
+                    <button onclick="copyGameUrl()">نسخ</button>
+                </div>
+            </div>
+
+            <div class="players-section">
+                <h3>اللاعبون المتصلون (<span id="playersCount">0</span>)</h3>
+                <div id="playersList" class="players-list"></div>
+            </div>
+
+            <div class="settings-section">
+                <h3>إعدادات اللعبة</h3>
+                
+                <div class="setting-item">
+                    <label>عدد أفراد المافيا:</label>
+                    <div class="stepper">
+                        <button onclick="changeMafiaCount(-1)">-</button>
+                        <span id="mafiaCount">2</span>
+                        <button onclick="changeMafiaCount(1)">+</button>
+                    </div>
+                </div>
+
+                <div class="setting-item">
+                    <label>
+                        <input type="checkbox" id="hasMedic">
+                        المسعف
+                    </label>
+                </div>
+
+                <div class="setting-item">
+                    <label>
+                        <input type="checkbox" id="hasHunter">
+                        الصياد
+                    </label>
+                </div>
+            </div>
+
+            <button id="startBtn" onclick="startGame()" disabled>بدء اللعبة</button>
+        </div>
+
+        <!-- شاشة اللعبة -->
+        <div id="gameScreen" class="screen">
+            <div class="game-header">
+                <h2>🎯 الجولة <span id="dayNumber">1</span></h2>
+                <div class="game-state" id="gameState">ليلة</div>
+            </div>
+
+            <div id="phaseInfo" class="phase-info">
+                <h3 id="phaseTitle">المرحلة الحالية</h3>
+                <div id="phaseTimer" class="timer">--:--</div>
+                <div id="phaseDescription" class="phase-desc"></div>
+            </div>
+
+            <div class="players-grid" id="playersGrid"></div>
+
+            <!-- زر عرض نتائج التصويت -->
+            <div id="votingSection" class="voting-section hidden">
+                <h3>التصويت الجاري</h3>
+                <button id="showVotesBtn" onclick="showVoteResults()">عرض نتائج التصويت</button>
+            </div>
+
+            <!-- نتائج الليل -->
+            <div id="nightResults" class="results-section hidden">
+                <h3>نتائج الليل</h3>
+                <div id="nightResultsText"></div>
+            </div>
+
+            <!-- نتائج التصويت -->
+            <div id="voteResults" class="results-section hidden">
+                <h3>نتائج التصويت</h3>
+                <div id="voteResultsText"></div>
+            </div>
+
+            <button onclick="resetGame()" class="secondary">إنهاء اللعبة</button>
+        </div>
+    </div>
+
+    <script src="client.js"></script>
+    <script>
+        let mafiaCount = 2;
+        let players = [];
+
+        function changeMafiaCount(change) {
+            const maxMafia = Math.max(1, Math.floor(players.length / 3));
+            mafiaCount = Math.max(1, Math.min(maxMafia, mafiaCount + change));
+            document.getElementById('mafiaCount').textContent = mafiaCount;
+        }
+
+        function copyGameUrl() {
+            const urlInput = document.getElementById('gameUrl');
+            urlInput.select();
+            document.execCommand('copy');
+            alert('تم نسخ الرابط!');
+        }
+
+        function startGame() {
+            const settings = {
+                mafiaCount: mafiaCount,
+                hasMedic: document.getElementById('hasMedic').checked,
+                hasHunter: document.getElementById('hasHunter').checked
+            };
+            
+            gameClient.send({
+                type: 'START_GAME',
+                settings: settings
+            });
+        }
+
+        function showVoteResults() {
+            gameClient.send({
+                type: 'SHOW_VOTE_RESULTS'
+            });
+        }
+
+        function resetGame() {
+            if (confirm('هل تريد إنهاء اللعبة الحالية؟')) {
+                gameClient.send({
+                    type: 'RESET_GAME'
+                });
+            }
+        }
+
+        // تحديث واجهة المضيف
+        function updateHostInterface(gameData) {
+            document.getElementById('dayNumber').textContent = gameData.dayNumber;
+            document.getElementById('gameState').textContent = gameData.state === 'NIGHT' ? 'ليلة' : 'نهار';
+            
+            // تحديث حالة اللاعبين
+            updatePlayersGrid(gameData.players);
+            
+            // إظهار/إخفاء أقسام حسب حالة اللعبة
+            updateGameSections(gameData);
+        }
+
+        function updateGameSections(gameData) {
+            const votingSection = document.getElementById('votingSection');
+            const nightResults = document.getElementById('nightResults');
+            const voteResults = document.getElementById('voteResults');
+
+            if (gameData.state === 'VOTING') {
+                votingSection.classList.remove('hidden');
+            } else {
+                votingSection.classList.add('hidden');
+            }
+
+            if (gameData.nightResults) {
+                nightResults.classList.remove('hidden');
+                document.getElementById('nightResultsText').textContent = gameData.nightResults;
+            }
+
+            if (gameData.voteResults) {
+                voteResults.classList.remove('hidden');
+                document.getElementById('voteResultsText').textContent = gameData.voteResults;
+            }
+        }
+
+        function updatePlayersGrid(players) {
+            const grid = document.getElementById('playersGrid');
+            grid.innerHTML = '';
+            
+            players.forEach(player => {
+                const playerCard = document.createElement('div');
+                playerCard.className = `player-card ${!player.alive ? 'dead' : ''}`;
+                
+                playerCard.innerHTML = `
+                    <div class="player-name">${player.name}</div>
+                    <div class="player-role">${player.role || 'لم يحدد'}</div>
+                    <div class="player-status">${player.alive ? 'حي' : 'ميت'}</div>
+                `;
+                
+                grid.appendChild(playerCard);
+            });
+        }
+
+        // تحديث رابط اللعبة تلقائياً
+        window.addEventListener('load', function() {
+            const gameUrl = `${window.location.origin}${window.location.pathname.replace('host.html', 'player.html')}`;
+            document.getElementById('gameUrl').value = gameUrl;
+        });
+    </script>
+</body>
+</html>

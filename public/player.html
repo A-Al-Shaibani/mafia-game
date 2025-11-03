@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>لاعب - لعبة المافيا</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .optional-field {
+            opacity: 0.7;
+            font-size: 14px;
+        }
+        .auto-connect {
+            background: rgba(76, 175, 80, 0.1);
+            padding: 10px;
+            border-radius: 8px;
+            margin: 10px 0;
+            border-right: 3px solid #4CAF50;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- شاشة الانضمام -->
+        <div id="joinScreen" class="screen active">
+            <h1>🎭 انضم للعبة المافيا</h1>
+            
+            <div class="input-section">
+                <input type="text" id="playerName" placeholder="أدخل اسمك" maxlength="20">
+                <button onclick="joinGame()">انضم للعبة</button>
+            </div>
+
+            <div class="auto-connect">
+                <p>✅ <strong>سيتم الاتصال تلقائياً بالخادم الرئيسي</strong></p>
+            </div>
+
+            <div class="connection-info">
+                <p class="optional-field">للاتصال بخادم مختلف (اختياري):</p>
+                <input type="text" id="serverUrl" placeholder="ws://خادم-مختلف:3000" class="optional-input">
+            </div>
+
+            <div class="game-info">
+                <h3>🎯 طريقة اللعب:</h3>
+                <ul style="text-align: right; opacity: 0.8; font-size: 14px;">
+                    <li>ادخل اسمك وانقر "انضم للعبة"</li>
+                    <li>انتظر في غرفة الانتظار حتى يبدأ المضيف</li>
+                    <li>ستظهر لك دورك تلقائياً عند بدء اللعبة</li>
+                    <li>اتبع التعليمات في كل مرحلة من اللعبة</li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- شاشة الانتظار -->
+        <div id="waitingScreen" class="screen">
+            <h2>مرحباً <span id="playerDisplayName"></span>! 👋</h2>
+            
+            <div class="connection-status">
+                <div id="connectionInfo" class="info-box">
+                    <p>✅ متصل بالخادم الرئيسي</p>
+                </div>
+            </div>
+
+            <div class="loading">
+                <div class="spinner"></div>
+                <p>في انتظار بدء اللعبة من قبل المضيف...</p>
+            </div>
+
+            <div class="players-section">
+                <h3>اللاعبون في الغرفة (<span id="playersCount">0</span>)</h3>
+                <div id="playersWaiting" class="players-list"></div>
+            </div>
+
+            <button onclick="leaveGame()" class="secondary-btn">ترك الغرفة</button>
+        </div>
+
+        <!-- شاشة اللعبة -->
+        <div id="gameScreen" class="screen">
+            <div class="player-header">
+                <div class="role-display">
+                    <h3>دورك: <span id="roleName" class="role-badge">...</span></h3>
+                </div>
+                <div class="game-info">
+                    <span>الجولة <span id="currentDay">1</span></span> • 
+                    <span id="currentPhase">ليلة</span>
+                </div>
+            </div>
+
+            <!-- معلومات المرحلة -->
+            <div id="phaseInfo" class="phase-info">
+                <h4 id="phaseTitle">المرحلة الحالية</h4>
+                <div id="phaseTimer" class="timer">--:--</div>
+                <div id="phaseDescription" class="phase-desc"></div>
+                <audio id="phaseSound" preload="auto"></audio>
+            </div>
+
+            <!-- واجهة الأدوار التفاعلية -->
+            <div id="roleInterface" class="role-interface hidden">
+                <h4 id="actionTitle">دورك الآن</h4>
+                <div id="actionDescription" class="action-desc"></div>
+                <div id="playersSelection" class="players-selection"></div>
+                <button id="confirmAction" onclick="confirmAction()" class="action-btn" disabled>تأكيد الاختيار</button>
+            </div>
+
+            <!-- نتائج التحقق (لزعيم الصالحين) -->
+            <div id="checkResult" class="result-popup hidden">
+                <div class="popup-content">
+                    <h4>🔍 نتيجة التحقق</h4>
+                    <div id="checkResultText" class="result-text"></div>
+                    <button onclick="closeCheckResult()" class="action-btn">حسناً</button>
+                </div>
+            </div>
+
+            <!-- واجهة التصويت -->
+            <div id="votingInterface" class="voting-interface hidden">
+                <h4>🗳️ التصويت لإقصاء لاعب</h4>
+                <div id="votingPlayers" class="players-selection"></div>
+                <button id="confirmVote" onclick="confirmVote()" class="action-btn" disabled>تأكيد التصويت</button>
+            </div>
+
+            <!-- واجهة الصياد -->
+            <div id="hunterInterface" class="hunter-interface hidden">
+                <h4>🎯 أنت الصياد!</h4>
+                <p>اختر لاعباً ليخرج معك:</p>
+                <div id="hunterPlayers" class="players-selection"></div>
+                <button id="confirmHunter" onclick="confirmHunterChoice()" class="action-btn" disabled>تأكيد الاختيار</button>
+            </div>
+
+            <!-- حالة اللعبة -->
+            <div id="gameStatus" class="game-status">
+                <div id="statusMessage" class="status-message"></div>
+                <div class="players-grid" id="playersGrid"></div>
+            </div>
+
+            <button onclick="leaveGame()" class="secondary-btn">ترك اللعبة</button>
+        </div>
+
+        <!-- شاشة الخطأ -->
+        <div id="errorScreen" class="screen">
+            <div class="error-content">
+                <h2>❌ حدث خطأ</h2>
+                <p id="errorMessage">تعذر الاتصال بالخادم</p>
+                <button onclick="showScreen('joinScreen')" class="action-btn">المحاولة مرة أخرى</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="client.js"></script>
+    <script>
+        // حالة اللاعب الحالي
+        let currentPlayer = {
+            id: null,
+            name: '',
+            role: null,
+            alive: true
+        };
+        
+        let selectedPlayerId = null;
+        let currentPhase = '';
+
+        // انضم للعبة
+        function joinGame() {
+            const playerName = document.getElementById('playerName').value.trim();
+            const serverUrl = document.getElementById('serverUrl').value.trim();
+            
+            if (!playerName) {
+                showError('الرجاء إدخال اسمك');
+                return;
+            }
+
+            currentPlayer.name = playerName;
+            
+            // اتصال تلقائي إذا لم يدخل المستخدم رابط
+            const finalServerUrl = serverUrl || ''; // فارغ = اتصال تلقائي
+            
+            connectToServer(finalServerUrl, playerName);
+        }
+
+        // الاتصال بالخادم
+        function connectToServer(serverUrl, playerName) {
+            showMessage('جاري الاتصال بالخادم...', 'info');
+            gameClient.connect(serverUrl, playerName);
+        }
+
+        // تأكيد الإجراء (أدوار الليل)
+        function confirmAction() {
+            if (!selectedPlayerId) {
+                showError('الرجاء اختيار لاعب');
+                return;
+            }
+            
+            const actionData = {
+                type: 'NIGHT_ACTION',
+                playerId: currentPlayer.id,
+                targetId: selectedPlayerId,
+                action: currentPhase
+            };
+            
+            gameClient.send(actionData);
+            hideRoleInterface();
+            showMessage('تم إرسال اختيارك', 'success');
+        }
+
+        // تأكيد التصويت
+        function confirmVote() {
+            if (!selectedPlayerId) {
+                showError('الرجاء اختيار لاعب للتصويت');
+                return;
+            }
+            
+            gameClient.send({
+                type: 'VOTE',
+                voterId: currentPlayer.id,
+                targetId: selectedPlayerId
+            });
+            
+            hideVotingInterface();
+            showMessage('تم إرسال تصويتك', 'success');
+        }
+
+        // تأكيد اختيار الصياد
+        function confirmHunterChoice() {
+            if (!selectedPlayerId) {
+                showError('الرجاء اختيار لاعب');
+                return;
+            }
+            
+            gameClient.send({
+                type: 'HUNTER_CHOICE',
+                hunterId: currentPlayer.id,
+                targetId: selectedPlayerId
+            });
+            
+            hideHunterInterface();
+            showMessage('تم إرسال اختيارك', 'success');
+        }
+
+        // اختيار لاعب
+        function selectPlayer(playerId, element) {
+            // إلغاء تحديد جميع اللاعبين
+            document.querySelectorAll('.player-selectable').forEach(el => {
+                el.classList.remove('selected');
+            });
+            
+            // تحديد اللاعب الجديد
+            element.classList.add('selected');
+            selectedPlayerId = playerId;
+            
+            // تفعيل أزرار التأكيد
+            document.getElementById('confirmAction').disabled = false;
+            document.getElementById('confirmVote').disabled = false;
+            document.getElementById('confirmHunter').disabled = false;
+        }
+
+        // إغلاق نتيجة التحقق
+        function closeCheckResult() {
+            document.getElementById('checkResult').classList.add('hidden');
+        }
+
+        // إخفاء واجهات الأدوار
+        function hideRoleInterface() {
+            document.getElementById('roleInterface').classList.add('hidden');
+            selectedPlayerId = null;
+        }
+
+        function hideVotingInterface() {
+            document.getElementById('votingInterface').classList.add('hidden');
+            selectedPlayerId = null;
+        }
+
+        function hideHunterInterface() {
+            document.getElementById('hunterInterface').classList.add('hidden');
+            selectedPlayerId = null;
+        }
+
+        // ترك اللعبة
+        function leaveGame() {
+            if (confirm('هل تريد ترك اللعبة؟')) {
+                if (gameClient.ws) {
+                    gameClient.ws.close();
+                }
+                showScreen('joinScreen');
+                resetGameState();
+            }
+        }
+
+        // إعادة تعيين حالة اللعبة
+        function resetGameState() {
+            currentPlayer = {
+                id: null,
+                name: '',
+                role: null,
+                alive: true
+            };
+            selectedPlayerId = null;
+            currentPhase = '';
+        }
+
+        // عرض رسالة
+        function showMessage(message, type = 'info') {
+            console.log(`💬 ${type}: ${message}`);
+            
+            // عرض إشعار مؤقت
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+            notification.textContent = message;
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 12px 20px;
+                border-radius: 8px;
+                color: white;
+                z-index: 1000;
+                font-weight: bold;
+                max-width: 300px;
+                text-align: center;
+                animation: slideIn 0.3s ease;
+            `;
+            
+            const colors = {
+                success: '#4CAF50',
+                error: '#dc3545',
+                info: '#17a2b8',
+                warning: '#ffc107'
+            };
+            
+            notification.style.background = colors[type] || colors.info;
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    document.body.removeChild(notification);
+                }
+            }, 3000);
+        }
+
+        // عرض خطأ
+        function showError(message) {
+            showMessage(message, 'error');
+        }
+
+        // تغيير الشاشة
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen').forEach(screen => {
+                screen.classList.remove('active');
+            });
+            document.getElementById(screenId).classList.add('active');
+        }
+
+        // تحديث معلومات الاتصال
+        function updateConnectionInfo(serverUrl) {
+            const connectionInfo = document.getElementById('connectionInfo');
+            if (connectionInfo) {
+                if (!serverUrl) {
+                    connectionInfo.innerHTML = '<p>✅ متصل بالخادم الرئيسي</p>';
+                } else {
+                    connectionInfo.innerHTML = `<p>✅ متصل بخادم مخصص</p>`;
+                }
+            }
+        }
+
+        // تحديث اسم اللاعب المعروض
+        function updatePlayerDisplayName(name) {
+            const displayName = document.getElementById('playerDisplayName');
+            if (displayName) {
+                displayName.textContent = name;
+            }
+        }
+
+        // عند تحميل الصفحة
+        window.addEventListener('load', function() {
+            // إضافة بعض الأنماط الإضافية
+            const style = document.createElement('style');
+            style.textContent = `
+                @keyframes slideIn {
+                    from { transform: translateX(100%); opacity: 0; }
+                    to { transform: translateX(0); opacity: 1; }
+                }
+                .optional-input {
+                    opacity: 0.7;
+                    border: 1px dashed #ccc;
+                }
+                .optional-input:focus {
+                    opacity: 1;
+                    border: 2px solid #4CAF50;
+                }
+                .spinner {
+                    border: 3px solid #f3f3f3;
+                    border-top: 3px solid #4CAF50;
+                    border-radius: 50%;
+                    width: 30px;
+                    height: 30px;
+                    animation: spin 1s linear infinite;
+                    margin: 0 auto;
+                }
+                @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                }
+            `;
+            document.head.appendChild(style);
+
+            // تعيين النص التوضيحي
+            const serverUrlInput = document.getElementById('serverUrl');
+            if (serverUrlInput) {
+                serverUrlInput.placeholder = "اتركه فارغاً للاتصال التلقائي";
+            }
+        });
+    </script>
+</body>
+</html>
