@@ -1,7 +1,7 @@
 class MafiaGameClient {
     constructor() {
         // ⭐ الخادم الافتراضي على Render
-        this.DEFAULT_SERVER = "mafia-game-bxwz.onrender.com";
+        this.DEFAULT_SERVER = "mafia-game.up.railway.app";
         this.ws = null;
         this.playerId = null;
         this.isHost = false;
